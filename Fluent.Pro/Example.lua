@@ -2,7 +2,7 @@
 -- Fluent UI + Liquid Glass + PlayerList 完全な使用例
 -- =====================================================
 
-local Library = require(game:GetService("StarterPlayer"):WaitForChild("StarterCharacterScripts"):WaitForChild("UILib"):WaitForChild("Fluent"):WaitForChild("Library"))
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/dcus-official/UI/main/Fluent.Pro/Library.lua"))()
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
