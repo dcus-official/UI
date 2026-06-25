@@ -3059,8 +3059,12 @@ Components.Tab = (function()
 				local Layout = ScrollFrame:FindFirstChild("UIListLayout")
 
 				local function UpdatePlayerList()
-					for _, Frame in pairs(PlayerFrames) do
-						Frame:Destroy()
+					for Frame, _ in pairs(PlayerFrames) do
+						pcall(function()
+							if Frame and Frame.Destroy then
+								Frame:Destroy()
+							end
+						end)
 					end
 					PlayerFrames = {}
 					SelectedPlayers = {}
@@ -3132,7 +3136,10 @@ Components.Tab = (function()
 								if Selected then
 									table.insert(SelectedPlayers, Player)
 								else
-									table.remove(SelectedPlayers, table.find(SelectedPlayers, Player))
+									local idx = table.find(SelectedPlayers, Player)
+									if idx then
+										table.remove(SelectedPlayers, idx)
+									end
 								end
 								Callback(SelectedPlayers)
 							else
@@ -3387,8 +3394,12 @@ Components.Tab = (function()
 			local Layout = ScrollFrame:FindFirstChild("UIListLayout")
 
 			local function UpdatePlayerList()
-				for _, Frame in pairs(PlayerFrames) do
-					Frame:Destroy()
+				for Frame, _ in pairs(PlayerFrames) do
+					pcall(function()
+						if Frame and Frame.Destroy then
+							Frame:Destroy()
+						end
+					end)
 				end
 				PlayerFrames = {}
 				SelectedPlayers = {}
@@ -3460,7 +3471,10 @@ Components.Tab = (function()
 							if Selected then
 								table.insert(SelectedPlayers, Player)
 							else
-								table.remove(SelectedPlayers, table.find(SelectedPlayers, Player))
+								local idx = table.find(SelectedPlayers, Player)
+								if idx then
+									table.remove(SelectedPlayers, idx)
+								end
 							end
 							Callback(SelectedPlayers)
 						else
@@ -5393,12 +5407,43 @@ Components.Window = (function()
 			if not RunService:IsStudio() and Library.Minimizer then
 				pcall(function()
 					if Mobile then
-						local mobileButton = Library.Minimizer:FindFirstChild("TextButton")
-						if mobileButton then
-							local imageLabel = mobileButton:FindFirstChild("ImageLabel")
-							if imageLabel then
-								imageLabel.Image = Window.Minimized and "rbxassetid://10734896384" or "rbxassetid://10734897102"
+						local minimizer = Library.Minimizer
+						if minimizer then
+							local mobileButton = minimizer:FindFirstChild("TextButton")
+							if mobileButton then
+								local imageLabel = mobileButton:FindFirstChild("ImageLabel")
+								if imageLabel then
+									imageLabel.Image = Window.Minimized and "rbxassetid://10734896384" or "rbxassetid://10734897102"
+								end
 							end
+							-- animate minimizer sliding from top on mobile
+							local ok, _ = pcall(function()
+								local curXScale = minimizer.Position.X.Scale or 0.5
+								local curXOffset = minimizer.Position.X.Offset or 0
+								local visibleY = 8
+								local offY = - (minimizer.AbsoluteSize.Y + 24)
+								local visiblePos = UDim2.new(curXScale, curXOffset, 0, visibleY)
+								local offPos = UDim2.new(curXScale, curXOffset, 0, offY)
+								local openLabel = Library.MinimizerOpenLabel
+								if Window.Minimized then
+									minimizer.Visible = true
+									TweenService:Create(minimizer, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = visiblePos}):Play()
+									if openLabel then
+										openLabel.Visible = true
+										local lblX = 0.5
+										local lblPos = UDim2.new(lblX, -openLabel.Size.X.Offset/2, 0, visibleY - openLabel.Size.Y.Offset - 6)
+										TweenService:Create(openLabel, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = lblPos}):Play()
+									end
+								else
+									TweenService:Create(minimizer, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = offPos}):Play()
+									if openLabel then
+										local hidePos = UDim2.new(0.5, -openLabel.Size.X.Offset/2, 0, -34)
+										TweenService:Create(openLabel, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = hidePos}):Play()
+										task.delay(0.26, function()
+											pcall(function() openLabel.Visible = false end)
+										end)
+								end
+							end)
 						end
 					else
 						local desktopButton = Library.Minimizer:FindFirstChild("TextButton")
@@ -6387,6 +6432,7 @@ ElementsTable.Dropdown = (function()
 						TextColor3 = "Text",
 					},
 				})
+
 
 				local Button = New("TextButton", {
 					Size = UDim2.new(1, -5, 0, 32),
@@ -9902,23 +9948,26 @@ local InterfaceManager = {} do
 
 		elseif Mobile then
 
+			holder = New("Frame", {
 
-			Settings.Acrylic = false
+				Name = "FluentMinimizer",
 
+				Parent = parentGui,
 
-		end
+				Size = Config.Size or UDim2.fromOffset(40, 40),
 
+				-- center horizontally and start above the screen so it can slide down
+				AnchorPoint = Vector2.new(0.5, 0),
 
+				Position = Config.Position or UDim2.new(0.5, 0, 0, -60),
 
+				BackgroundTransparency = 1,
 
+				ZIndex = 999999999,
 
-		section:AddSlider("WindowTransparency", {
+				Visible = (Config.Visible ~= false),
 
-
-			Title = "Window Transparency",
-
-
-			Description = "Adjusts the window transparency.",
+			})
 
 
 			Default = 1,
@@ -10231,7 +10280,7 @@ function Library:CreateMinimizer(Config)
 	local backgroundTransparency = (typeof(Config.Transparency) == "number") and math.clamp(Config.Transparency, 0, 1) or 0
 
 
-	local draggableWhole = (Config.Draggable == true)
+	local draggableWhole = (Config.Draggable == true) or isMobile
 
 
 
@@ -10652,6 +10701,29 @@ function Library:CreateMinimizer(Config)
 
 
 	self.Minimizer = holder
+	-- Create mobile 'Open' label (appears when window is minimized)
+	if isMobile then
+		local openLabel = New("TextLabel", {
+			Name = "FluentMinimizerOpenLabel",
+			Parent = parentGui,
+			Size = UDim2.new(0, 120, 0, 28),
+			Position = UDim2.new(0.5, -60, 0, -34),
+			AnchorPoint = Vector2.new(0, 0),
+			BackgroundTransparency = 0.9,
+			Text = "Open",
+			Font = Enum.Font.Gotham,
+			TextSize = 16,
+			TextColor3 = (Themes[Library.Theme] and Themes[Library.Theme].Text) or Color3.fromRGB(240,240,240),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = holder.ZIndex + 1,
+			Visible = false,
+		}, {
+			New("UICorner", { CornerRadius = UDim.new(0, 6) })
+		})
+		self.MinimizerOpenLabel = openLabel
+	end
+
+	return holder
 
 
 	return holder
