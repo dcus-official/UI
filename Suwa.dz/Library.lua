@@ -4207,32 +4207,63 @@ function Library:CreateWindow(Settings)
 	function Funcs:CreateHomeTab(HomeTabSettings)
 		HomeTabSettings = HomeTabSettings or {}
 		
-		-- Default settings
+		-- Default settings with proper formatting
 		local SupportedExecutors = HomeTabSettings.SupportedExecutors or {}
-		local DiscordInvite = HomeTabSettings.DiscordInvite or "discord"
+		local DiscordInvite = HomeTabSettings.DiscordInvite or "noinvitelink"
 		local Icon = HomeTabSettings.Icon or 1
 		
-		-- Create a standard tab with home information
-		local HomeTab = Funcs:CreateTab("Home", false, "rbxassetid://7059346373")
+		-- Create home tab
+		local HomeTab = Funcs:CreateTab("Home", true, "rbxassetid://7059346373")
 		
-		-- Add player information
-		HomeTab:CreateLabel("Player Information")
-		
-		local PlayerName = "Player: " .. LP.Name
-		HomeTab:CreateLabel(PlayerName)
-		
-		local DisplayName = "Display Name: " .. LP.DisplayName
-		HomeTab:CreateLabel(DisplayName)
-		
-		HomeTab:CreateLabel("")
-		HomeTab:CreateLabel("Executor Information")
+		-- Helper functions
+		local function getPing()
+			pcall(function()
+				local Stats = game:GetService("Stats")
+				local NetworkStats = Stats:FindFirstChild("Network")
+				if NetworkStats then
+					local ServerStats = NetworkStats:FindFirstChild("ServerStatsItem")
+					if ServerStats then
+						local DataPing = ServerStats:FindFirstChild("Data Ping")
+						if DataPing then
+							return math.clamp(DataPing:GetValue(), 10, 700)
+						end
+					end
+				end
+			end)
+			return 0
+		end
+
+		local function format(Int)
+			return string.format("%02i", Int)
+		end
+
+		local function convertToHMS(Seconds)
+			local Minutes = (Seconds - Seconds%60)/60
+			Seconds = Seconds - Minutes*60
+			local Hours = (Minutes - Minutes%60)/60
+			Minutes = Minutes - Hours*60
+			return format(Hours)..":"..format(Minutes)..":"..format(Seconds)
+		end
+
+		-- ========== CLIENT INFO BLOCK ==========
+		local ClientBlock = HomeTab:CreateBlock({
+			Name = "Client",
+			Side = "Left"
+		})
+
+		-- Player avatar placeholder (text-based in Solaris)
+		ClientBlock:CreateLabel("Hello, " .. LP.DisplayName)
+		ClientBlock:CreateLabel(LP.Name)
 		
 		-- Executor detection
 		local ExecutorName = "Unknown"
+		local ExecutorStatus = "Not Detected"
+		
 		if identifyexecutor then
 			ExecutorName = identifyexecutor()
+		elseif _G.executorid then
+			ExecutorName = _G.executorid
 		end
-		HomeTab:CreateLabel("Executor: " .. ExecutorName)
 		
 		-- Check if executor is supported
 		local IsSupported = false
@@ -4240,60 +4271,72 @@ function Library:CreateWindow(Settings)
 			for _, executor in ipairs(SupportedExecutors) do
 				if executor == ExecutorName then
 					IsSupported = true
+					ExecutorStatus = "✓ Supported"
 					break
 				end
 			end
-			local SupportStatus = IsSupported and "✓ Supported" or "⚠ Not Officially Supported"
-			HomeTab:CreateLabel(SupportStatus)
-		end
-		
-		-- Ping information
-		local function GetPing()
-			local Stats = game:GetService("Stats")
-			local NetworkStats = Stats:FindFirstChild("Network")
-			if NetworkStats then
-				local ServerStats = NetworkStats:FindFirstChild("ServerStatsItem")
-				if ServerStats then
-					local DataPing = ServerStats:FindFirstChild("Data Ping")
-					if DataPing then
-						return math.floor(DataPing:GetValue())
-					end
-				end
+			if not IsSupported then
+				ExecutorStatus = "⚠ Not Officially Supported"
 			end
-			return 0
 		end
 		
-		HomeTab:CreateLabel("")
-		HomeTab:CreateLabel("Server Information")
+		ClientBlock:CreateLabel("")
+		ClientBlock:CreateLabel("Executor: " .. ExecutorName)
+		ClientBlock:CreateLabel(ExecutorStatus)
 		
-		-- Server info updates
+		-- ========== SERVER INFO BLOCK ==========
+		local ServerBlock = HomeTab:CreateBlock({
+			Name = "Server",
+			Side = "Right"
+		})
+
+		local PlayersLabel = ServerBlock:CreateLabel("Players: 0/0")
+		local PingLabel = ServerBlock:CreateLabel("Ping: 0ms")
+		local TimeLabel = ServerBlock:CreateLabel("Time: 00:00:00")
+		
+		-- Server info update loop
+		local lastUpdate = 0
 		coroutine.wrap(function()
 			while task.wait(1) do
 				local Players = game:GetService("Players")
 				local PlayerCount = #Players:GetPlayers()
 				local MaxPlayers = Players.MaxPlayers
+				local Ping = math.floor(getPing())
+				local ServerTime = convertToHMS(math.floor(time()))
 				
-				-- These would normally update the label, but since Solaris doesn't support
-				-- updating existing labels, we'll create this as a static display
-				-- In a real implementation, you might want to create a custom update mechanism
+				-- Update labels
+				if PlayersLabel and PlayersLabel.Text then
+					PlayersLabel:Set("Players: " .. PlayerCount .. "/" .. MaxPlayers)
+				end
+				
+				if PingLabel and PingLabel.Text then
+					PingLabel:Set("Ping: " .. Ping .. "ms")
+				end
+				
+				if TimeLabel and TimeLabel.Text then
+					TimeLabel:Set("Time: " .. ServerTime)
+				end
 			end
 		end)()
 		
-		HomeTab:CreateLabel("Players: " .. #game:GetService("Players"):GetPlayers())
-		HomeTab:CreateLabel("Ping: " .. GetPing() .. "ms")
-		
-		-- Discord invite button
-		if DiscordInvite ~= "" and DiscordInvite ~= "discord" then
-			HomeTab:CreateLabel("")
-			HomeTab:CreateButton({
-				Name = "Copy Discord Invite",
-				Flag = "DiscordInvite",
+		-- ========== DISCORD BLOCK ==========
+		if DiscordInvite ~= "" and DiscordInvite ~= "noinvitelink" then
+			local DiscordBlock = HomeTab:CreateBlock({
+				Name = "Discord Community",
+				Side = "Left"
+			})
+			
+			DiscordBlock:CreateLabel("Join our Discord server for updates and support!")
+			
+			DiscordBlock:CreateButton({
+				Name = "Open Discord Invite",
+				Flag = "OpenDiscord",
 				Callback = function()
 					local DiscordURL = "https://discord.gg/" .. DiscordInvite
 					setclipboard(DiscordURL)
 					print("Discord invite copied: " .. DiscordURL)
 					
-					-- Try to open Discord invite if possible
+					-- Try to open Discord
 					if request then
 						pcall(function()
 							request({
@@ -4314,6 +4357,91 @@ function Library:CreateWindow(Settings)
 				end
 			})
 		end
+		
+		-- ========== FRIENDS BLOCK ==========
+		local FriendsBlock = HomeTab:CreateBlock({
+			Name = "Friends",
+			Side = "Right"
+		})
+		
+		local AllFriendsLabel = FriendsBlock:CreateLabel("All Friends: 0")
+		local OnlineFriendsLabel = FriendsBlock:CreateLabel("Online: 0")
+		local OfflineFriendsLabel = FriendsBlock:CreateLabel("Offline: 0")
+		local InGameLabel = FriendsBlock:CreateLabel("In Game: 0")
+		
+		-- Friends info update loop
+		local friendsCooldown = 0
+		coroutine.wrap(function()
+			while task.wait(1) do
+				if friendsCooldown == 0 then
+					friendsCooldown = 25
+					
+					pcall(function()
+						local Players = game:GetService("Players")
+						local Plrs = game:GetService("Players")
+						
+						local playersFriends = {}
+						local friendsInTotal = 0
+						local onlineFriends = 0
+						local friendsInGame = 0
+						
+						-- Get friends list safely
+						local friendsList = Plrs:GetFriendsAsync(LP.UserId)
+						if friendsList then
+							while true do
+								for _, data in pairs(friendsList:GetCurrentPage()) do
+									friendsInTotal = friendsInTotal + 1
+									table.insert(playersFriends, data)
+								end
+								
+								if friendsList.IsFinished then
+									break
+								else
+									friendsList:AdvanceToNextPageAsync()
+								end
+							end
+						end
+						
+						-- Get online friends
+						local onlineList = Plrs:GetFriendsOnline(LP.UserId, 200)
+						onlineFriends = #onlineList
+						
+						-- Check friends in game
+						for _, friendData in pairs(playersFriends) do
+							if Plrs:FindFirstChild(friendData.Username) then
+								friendsInGame = friendsInGame + 1
+							end
+						end
+						
+						-- Update labels
+						if AllFriendsLabel then
+							AllFriendsLabel:Set("All Friends: " .. friendsInTotal)
+						end
+						if OnlineFriendsLabel then
+							OnlineFriendsLabel:Set("Online: " .. onlineFriends)
+						end
+						if OfflineFriendsLabel then
+							OfflineFriendsLabel:Set("Offline: " .. (friendsInTotal - onlineFriends))
+						end
+						if InGameLabel then
+							InGameLabel:Set("In Game: " .. friendsInGame)
+						end
+					end)
+				else
+					friendsCooldown = friendsCooldown - 1
+				end
+			end
+		end)()
+		
+		-- ========== SCRIPT INFO BLOCK ==========
+		local InfoBlock = HomeTab:CreateBlock({
+			Name = "Script Information",
+			Side = "Left"
+		})
+		
+		InfoBlock:CreateLabel("Solaris UI - Home Tab")
+		InfoBlock:CreateLabel("Modern UI Framework for Roblox")
+		InfoBlock:CreateLabel("Version: 1.3")
 		
 		return HomeTab
 	end
