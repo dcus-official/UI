@@ -4203,6 +4203,121 @@ function Library:CreateWindow(Settings)
 		return TabElements, Activate
 	end
 
+	-- CreateHomeTab method for displaying home/dashboard tab
+	function Funcs:CreateHomeTab(HomeTabSettings)
+		HomeTabSettings = HomeTabSettings or {}
+		
+		-- Default settings
+		local SupportedExecutors = HomeTabSettings.SupportedExecutors or {}
+		local DiscordInvite = HomeTabSettings.DiscordInvite or "discord"
+		local Icon = HomeTabSettings.Icon or 1
+		
+		-- Create a standard tab with home information
+		local HomeTab = Funcs:CreateTab("Home", false, "rbxassetid://7059346373")
+		
+		-- Add player information
+		HomeTab:CreateLabel("Player Information")
+		
+		local PlayerName = "Player: " .. LP.Name
+		HomeTab:CreateLabel(PlayerName)
+		
+		local DisplayName = "Display Name: " .. LP.DisplayName
+		HomeTab:CreateLabel(DisplayName)
+		
+		HomeTab:CreateLabel("")
+		HomeTab:CreateLabel("Executor Information")
+		
+		-- Executor detection
+		local ExecutorName = "Unknown"
+		if identifyexecutor then
+			ExecutorName = identifyexecutor()
+		end
+		HomeTab:CreateLabel("Executor: " .. ExecutorName)
+		
+		-- Check if executor is supported
+		local IsSupported = false
+		if #SupportedExecutors > 0 then
+			for _, executor in ipairs(SupportedExecutors) do
+				if executor == ExecutorName then
+					IsSupported = true
+					break
+				end
+			end
+			local SupportStatus = IsSupported and "✓ Supported" or "⚠ Not Officially Supported"
+			HomeTab:CreateLabel(SupportStatus)
+		end
+		
+		-- Ping information
+		local function GetPing()
+			local Stats = game:GetService("Stats")
+			local NetworkStats = Stats:FindFirstChild("Network")
+			if NetworkStats then
+				local ServerStats = NetworkStats:FindFirstChild("ServerStatsItem")
+				if ServerStats then
+					local DataPing = ServerStats:FindFirstChild("Data Ping")
+					if DataPing then
+						return math.floor(DataPing:GetValue())
+					end
+				end
+			end
+			return 0
+		end
+		
+		HomeTab:CreateLabel("")
+		HomeTab:CreateLabel("Server Information")
+		
+		-- Server info updates
+		coroutine.wrap(function()
+			while task.wait(1) do
+				local Players = game:GetService("Players")
+				local PlayerCount = #Players:GetPlayers()
+				local MaxPlayers = Players.MaxPlayers
+				
+				-- These would normally update the label, but since Solaris doesn't support
+				-- updating existing labels, we'll create this as a static display
+				-- In a real implementation, you might want to create a custom update mechanism
+			end
+		end)()
+		
+		HomeTab:CreateLabel("Players: " .. #game:GetService("Players"):GetPlayers())
+		HomeTab:CreateLabel("Ping: " .. GetPing() .. "ms")
+		
+		-- Discord invite button
+		if DiscordInvite ~= "" and DiscordInvite ~= "discord" then
+			HomeTab:CreateLabel("")
+			HomeTab:CreateButton({
+				Name = "Copy Discord Invite",
+				Flag = "DiscordInvite",
+				Callback = function()
+					local DiscordURL = "https://discord.gg/" .. DiscordInvite
+					setclipboard(DiscordURL)
+					print("Discord invite copied: " .. DiscordURL)
+					
+					-- Try to open Discord invite if possible
+					if request then
+						pcall(function()
+							request({
+								Url = 'http://127.0.0.1:6463/rpc?v=1',
+								Method = 'POST',
+								Headers = {
+									['Content-Type'] = 'application/json',
+									Origin = 'https://discord.com'
+								},
+								Body = game:GetService("HttpService"):JSONEncode({
+									cmd = 'INVITE_BROWSER',
+									nonce = game:GetService("HttpService"):GenerateGUID(false),
+									args = {code = DiscordInvite}
+								})
+							})
+						end)
+					end
+				end
+			})
+		end
+		
+		return HomeTab
+	end
+
 	local SettingsTab, OpenSettingsFunc = Funcs:CreateTab("UI Settings", true, "rbxassetid://7059346373")
 
 	local AppBlock = SettingsTab:CreateBlock({Name = "Appearance", Side = "Left"})
