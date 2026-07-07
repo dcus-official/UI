@@ -33,6 +33,12 @@
 		
 ]]
 
+--[[
+	V2.0.1 Release Notes:
+	- Fixed a bug in the UI creation process.
+	- Fixed Title Anim
+]]
+
 local _g = (getgenv or function() return _G or shared or {} end)()
 if not _g._OBS then
 	_g._OBS = {
@@ -7234,26 +7240,37 @@ function _L:CreateWindow(...)
 			end)
 
 		elseif AnimType == "Slide" then
-			-- テキストが指定方向にスライドしてループ
 			task.spawn(function()
-				local function getSlideOffset()
-					if AnimDir == "Left"  then return UDim2.new(0, -TitleClipFrame.AbsoluteSize.X - 10, 0, 0), UDim2.new(1, 10, 0, 0)
-					elseif AnimDir == "Right" then return UDim2.new(1, 10, 0, 0), UDim2.new(0, -TitleClipFrame.AbsoluteSize.X - 10, 0, 0)
-					elseif AnimDir == "Up"    then return UDim2.new(0, 0, -1, -10), UDim2.new(0, 0, 1, 10)
-					else return UDim2.new(0, 0, 1, 10), UDim2.new(0, 0, -1, -10) end
+				task.wait(0.5)
+				local fullText = TitleText
+				local chars = {}
+				for i = 1, #fullText do
+					chars[i] = fullText:sub(i, i)
 				end
-				task.wait(0.5) -- レイアウト確定待ち
+
 				while TitleClipFrame and TitleClipFrame.Parent do
-					local exitPos, enterPos = getSlideOffset()
-					-- スライドアウト
-					TWS:Create(WindowLabel, TweenInfo.new(AnimSpeed, Enum.EasingStyle.Sine, Enum.EasingDirection.In),
-						{ Position = exitPos }):Play()
-					task.wait(AnimSpeed)
-					-- 瞬間移動して入り直す
-					WindowLabel.Position = enterPos
-					TWS:Create(WindowLabel, TweenInfo.new(AnimSpeed, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-						{ Position = UDim2.new(0, 0, 0, 0) }):Play()
-					task.wait(AnimSpeed + 1.5)
+					-- 1文字ずつ左から消していく
+					for i = 1, #chars do
+						if not (TitleClipFrame and TitleClipFrame.Parent) then break end
+						local display = string.rep(" ", i) .. fullText:sub(i + 1)
+						WindowLabel.Text = display
+						task.wait(AnimSpeed / #chars)
+					end
+
+					-- 全部消えたら一瞬待つ
+					WindowLabel.Text = ""
+					task.wait(0.3)
+
+					-- 左から1文字ずつ表示
+					for i = 1, #chars do
+						if not (TitleClipFrame and TitleClipFrame.Parent) then break end
+						WindowLabel.Text = fullText:sub(1, i)
+						task.wait(AnimSpeed / #chars)
+					end
+
+					-- フル表示で少し待つ
+					WindowLabel.Text = fullText
+					task.wait(1.5)
 				end
 			end)
 		end
